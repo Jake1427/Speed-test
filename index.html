@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1200, initial-scale=1.0">
+    <title>Speed Lab html update version 2x</title>
+</head>
+<body>
+    <div id="app"></div>
+<script> 
+const WORD_BANK = [
+  "focus", "speed", "clean", "minimal", "keyboard", "reaction", "accuracy", "precision", " smooth", "timing",
+  "design", "motion", "simple", "modern", "rapid", "flow", "track", "sharp", "logic", "swift",
+  "stable", "robust", "future", "optimize", " latency", " memory", "signal", "frame", " render", "input"
+];
+
+const TIME_OPTIONS = [1, 5, 10, 30];
+
+function generateWords(count = 40) {
+  return Array.from({ length: count }, () =>
+    WORD_BANK[Math.floor(Math.random() * WORD_BANK.length)]
+  );
+}
+
+function ratingWPM(wpm) {
+  if (wpm < 30) return "Beginner";
+  if (wpm < 50) return "Solid";
+  if (wpm < 70) return "Fast";
+  if (wpm < 90) return "Cracked";
+  return "Elite";
+}
+
+function ratingCPS(cps) {
+  if (cps < 4) return "Casual";
+  if (cps < 6) return "Quick";
+  if (cps < 8) return "Fast";
+  if (cps < 10) return "Speed Demon";
+  return "Inhuman";
+}
+
+class SpeedTestApp {
+  constructor(rootEl) {
+    this.rootEl = rootEl;
+    this.state = {
+      mode: "typing", // typing, clicking, reaction
+      timeLimit: 10,
+      timeLeft: 10,
+      isActive: false,
+      darkMode: false,
+
+      // Typing state
+      words: generateWords(),
+      input: "",
+      startedTyping: false,
+
+      // Clicking state
+      clicks: 0,
+
+      // Reaction state
+      reactionState: "idle", // idle, red, yellow, green
+      reactionStart: null,
+      reactionTime: null,
+
+      // Global history/popup
+      history: [],
+      popup: null,
+    };
+
+    // Refs (mimicking refs with instance variables)
+    this.intervalRef = null;
+    this.timeoutRef = null;
+    this.inputRef = null; 
+
+    // Bind methods
+    this.render = this.render.bind(this);
+    this.setState = this.setState.bind(this);
+    this.handleTyping = this.handleTyping.bind(this);
+    this.startTyping = this.startTyping.bind(this);
+    this.finishTyping = this.finishTyping.bind(this);
+    this.startClicking = this.startClicking.bind(this);
+    this.finishClicking = this.finishClicking.bind(this);
+    this.startReaction = this.startReaction.bind(this);
+    this.handleReactionClick = this.handleReactionClick.bind(this);
+    this.clearTimers = this.clearTimers.bind(this);
+
+    // Initial render
+    this.render();
+  }
+
+  setState(newState, callback) {
+    // Basic state update logic, handles functional updates
+    if (typeof newState === 'function') {
+      this.state = { ...this.state, ...newState(this.state) };
+    } else {
+      this.state = { ...this.state, ...newState };
+    }
+    this.render();
+    if (callback) callback();
+  }
+
+  clearTimers() {
+    if (this.intervalRef) clearInterval(this.intervalRef);
+    if (this.timeoutRef) clearTimeout(this.timeoutRef);
+  }
+
+  // Effect-like behavior for timeLimit changes
+  handleTimeLimitChange(t) {
+      this.setState({ timeLimit: t, timeLeft: t});
+  }
+
+
+  /* =========================
+     TYPING MODE
+  ========================= */
+
+  startTyping() {
+    this.clearTimers();
+    this.setState({
+      words: generateWords(),
+      input: "",
+      startedTyping: false,
+      timeLeft: this.state.timeLimit,
+      isActive: true,
+    }, () => {
+       // Focus the input after a short delay
+       setTimeout(() => {
+           if(this.inputRef) this.inputRef.focus();
+       }, 100);
+    });
+  }
+
+  finishTyping() {
+    this.clearTimers();
+    this.setState({ isActive: false });
+
+    const typedWords = this.state.input.trim().split(/\s+/);
+    let totalChars = 0;
+    let correctChars = 0;
+
+    this.state.words.forEach((word, i) => {
+      totalChars += word.length;
+      if (!typedWords[i]) return;
+      for (let j = 0; j < word.length; j++) {
+        if (typedWords[i][j] === word[j]) correctChars++;
+      }
+    });
+
+    const minutes = this.state.timeLimit / 60;
+    const wpm = Math.max(0, Math.round((correctChars / 5) / minutes));
+    const accuracy = totalChars === 0 ? 0 : Math.round((correctChars / totalChars) * 100);
+
+    const result = { id: Date.now(), mode: "typing", score: wpm, accuracy };
+    
+    this.setState(prevState => ({
+        history: [...prevState.history, result],
+        popup: {
+            title: `${wpm} WPM`,
+            subtitle: `${accuracy}% Accuracy`,
+            rating: ratingWPM(wpm)
+        }
+    }));
+  }
+
+  handleTyping(e) {
+    if (!this.state.startedTyping) {
+      this.setState({ startedTyping: true });
+      this.intervalRef = setInterval(() => {
+        this.setState(prevState => {
+          if (prevState.timeLeft <= 1) {
+            this.finishTyping();
+            return { timeLeft: 0 };
+          }
+          return { timeLeft: prevState.timeLeft - 1 };
+        });
+      }, 1000);
+    }
+    this.setState({ input: e.target.value });
+  }
+
+  /* =========================
+     CLICKING MODE
+  ========================= */
+
+  startClicking() {
+    this.clearTimers();
+    this.setState({
+      clicks: 0,
+      timeLeft: this.state.timeLimit,
+      isActive: true
+    });
+
+    this.intervalRef = setInterval(() => {
+      this.setState(prevState => {
+        if (prevState.timeLeft <= 1) {
+          this.finishClicking();
+          return { timeLeft: 0 };
+        }
+        return { timeLeft: prevState.timeLeft - 1 };
+      });
+    }, 1000);
+  }
+
+  finishClicking() {
+    this.clearTimers();
+    this.setState({ isActive: false });
+
+    const cps = Number((this.state.clicks / this.state.timeLimit).toFixed(2));
+    const result = { id: Date.now(), mode: "clicking", score: cps };
+
+    this.setState(prevState => ({
+      history: [...prevState.history, result],
+      popup: {
+        title: `${cps} CPS`,
+        subtitle: `${this.state.clicks} clicks in ${this.state.timeLimit}s`,
+        rating: ratingCPS(cps)
+      }
+    }));
+  }
+
+  /* =========================
+     REACTION MODE
+  ========================= */
+
+  startReaction() {
+    this.clearTimers();
+    this.setState({ reactionTime: null, reactionState: "red" });
+
+    const yellowDelay = 400 + Math.random() * 1200;
+    const greenDelay = yellowDelay + 600 + Math.random() * 2000;
+
+    this.timeoutRef = setTimeout(() => this.setState({ reactionState: "yellow" }), yellowDelay);
+    setTimeout(() => {
+      this.setState({ reactionState: "green", reactionStart: performance.now() });
+    }, greenDelay);
+  }
+
+  handleReactionClick() {
+    if (this.state.reactionState === "green") {
+      const delay = Math.round(performance.now() - this.state.reactionStart);
+      this.setState({ reactionTime: delay, reactionState: "idle" });
+
+      const result = { id: Date.now(), mode: "reaction", score: delay };
+      
+      this.setState(prevState => ({
+          history: [...prevState.history, result],
+          popup: {
+            title: `${delay} ms`,
+            subtitle: `Reaction time`,
+            rating: delay < 200 ? "Insane" : delay < 250 ? "Fast" : "Human"
+          }
+      }));
+
+    } else if (this.state.reactionState !== "idle") {
+      this.setState({ reactionTime: "Too Early", reactionState: "idle" });
+    }
+  }
+
+  getPersonalBest() {
+    const filtered = this.state.history.filter(h => h.mode === this.state.mode);
+    if (filtered.length === 0) return null;
+
+    if (this.state.mode === "reaction") {
+      return Math.min(...filtered.map(h => h.score));
+    }
+    return Math.max(...filtered.map(h => h.score));
+  }
+
+
+  /* =========================
+     RENDER HELPERS
+  ========================= */
+
+  renderModeButtons() {
+    return ["typing", "clicking", "reaction"].map(m => `
+      <button class="btn ${this.state.mode === m ? 'btn-default' : 'btn-outline'}" 
+              data-action="setMode" data-mode="${m}">
+        ${m.charAt(0).toUpperCase() + m.slice(1)}
+      </button>
+    `).join('');
+  }
+
+  renderTimeOptions() {
+    if (this.state.mode === "reaction") return '';
+    return `
+      <div class="flex gap-2 justify-center flex-wrap">
+        ${TIME_OPTIONS.map(t => `
+          <button class="btn ${this.state.timeLimit === t ? 'btn-default' : 'btn-outline'}"
+                  data-action="setTimeLimit" data-time="${t}">
+            ${t}s
+          </button>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  renderPersonalBest() {
+    const pb = this.getPersonalBest();
+    if (pb === null) return '';
+    const unit = this.state.mode === "reaction" ? "ms" : this.state.mode === "typing" ? "WPM" : "CPS";
+    return `<div class="text-center text-sm opacity-70 mt-4 mb-4">Personal Best: ${pb} ${unit}</div>`;
+  }
+
+  renderTypingMode() {
+    if (this.state.mode !== "typing") return '';
+    
+    const typedWords = this.state.input.split(" ");
+    
+    const wordsHtml = this.state.words.map((word, i) => {
+      const typed = typedWords[i];
+      let colorClass = "";
+      if (typed != null) {
+         colorClass = typed === word ? "text-green-500" : "text-red-500";
+      }
+      return `<span class="${colorClass} mr-2">${word}</span>`;
+    }).join('');
+
+    return `
+      <div class="space-y-4">
+        <div class="text-center mb-4">Time: ${this.state.timeLeft}s</div>
+        
+        <div class="typing-container relative border rounded-xl p-4 min-h-[120px] text-lg leading-relaxed break-words cursor-text"
+             onclick="document.getElementById('typing-input').focus()">
+             ${wordsHtml}
+             <input id="typing-input" 
+                    value="${this.state.input}" 
+                    ${!this.state.isActive ? 'disabled' : ''} 
+                    class="absolute inset-0 w-full h-full opacity-0 z-10" />
+        </div>
+
+        <div class="flex justify-center mt-4">
+          ${!this.state.isActive 
+            ? `<button class="btn btn-default" data-action="startTyping">Start</button>` 
+            : `<button class="btn btn-outline" data-action="finishTyping">Stop</button>`}
+        </div>
+      </div>
+    `;
+  }
+
+  renderClickingMode() {
+    if (this.state.mode !== "clicking") return '';
+    return `
+      <div class="space-y-6 text-center">
+        <div class="mb-4">Time: ${this.state.timeLeft}s</div>
+        
+        <div class="w-40 h-40 mx-auto rounded-2xl bg-black text-white flex items-center justify-center text-xl font-semibold cursor-pointer select-none transition-transform active:scale-95 shadow-md ${this.state.darkMode ? 'bg-gray-800' : ''}"
+             data-action="handleClickArea">
+          Click
+        </div>
+        
+        <div class="mt-4">
+          ${!this.state.isActive 
+            ? `<button class="btn btn-default" data-action="startClicking">Start</button>` 
+            : `<div class="text-lg font-semibold">${this.state.clicks} clicks</div>`}
+        </div>
+      </div>
+    `;
+  }
+
+  renderReactionMode() {
+    if (this.state.mode !== "reaction") return '';
+    
+    let bgClass = "bg-gray-400";
+    let text = "WAIT";
+    let textColor = "text-white";
+
+    if(this.state.reactionState === "red") { bgClass = "bg-red-500"; text = "RED"; }
+    else if(this.state.reactionState === "yellow") { bgClass = "bg-yellow-400"; text = "YELLOW"; textColor = "text-black"; }
+    else if(this.state.reactionState === "green") { bgClass = "bg-green-500"; text = "GREEN"; }
+
+    return `
+      <div class="space-y-6 text-center">
+        <div data-action="handleReactionClick"
+             class="w-40 h-40 mx-auto rounded-2xl flex items-center justify-center ${textColor} text-xl font-semibold cursor-pointer select-none shadow-md ${bgClass} transition-colors duration-100">
+             ${text}
+        </div>
+        <div class="mt-4">
+           <button class="btn btn-default" data-action="startReaction">Start</button>
+        </div>
+        ${this.state.reactionTime === "Too Early" ? `<div class="text-red-500 mt-2 font-bold">Too Early!</div>` : ''}
+      </div>
+    `;
+  }
+
+  renderPopup() {
+    if (!this.state.popup) return '';
+    const p = this.state.popup;
+    return `
+      <div class="fixed bottom-6 right-6 bg-black text-white px-6 py-4 rounded-2xl shadow-2xl z-50 animate-slide-up">
+        <div class="text-lg font-semibold">${p.title}</div>
+        <div class="text-sm opacity-70">${p.subtitle}</div>
+        <div class="text-sm mt-1">${p.rating}</div>
+        <div class="text-right mt-2">
+          <button class="btn btn-outline btn-sm" data-action="closePopup">Close</button>
+        </div>
+      </div>
+    `;
+  }
+
+  renderChart() {
+    const data = this.state.history.filter(h => h.mode === this.state.mode);
+    if (data.length === 0) return '';
+    
+    // Fallback simple HTML chart representation since Recharts isn't available
+    const maxScore = Math.max(...data.map(d=>d.score), 1);
+    
+    const bars = data.map(d => {
+        const heightPct = (d.score / maxScore) * 100;
+        return `
+            <div class="flex flex-col items-center justify-end" style="height: 100%; width: ${100/Math.max(10, data.length)}%; min-width: 20px;">
+                <div class="w-full bg-blue-500 rounded-t-sm" style="height: ${heightPct}%; min-height: 2px;" title="Score: ${d.score}"></div>
+            </div>
+        `;
+    }).join('');
+
+    return `
+      <div class="pt-6 mt-8 border-t border-gray-200 ${this.state.darkMode ? 'border-gray-700' : ''}">
+        <h3 class="text-center text-sm mb-4 opacity-70">History</h3>
+        <div class="h-40 flex items-end gap-1 px-2">
+            ${bars}
+        </div>
+      </div>
+    `;
+  }
+
+  /* =========================
+     MAIN RENDER
+  ========================= */
+
+  render() {
+    const isDark = this.state.darkMode;
+    const containerClasses = isDark 
+        ? "min-h-screen bg-gray-900 text-white flex items-center justify-center p-4 transition-colors duration-300"
+        : "min-h-screen bg-gray-50 text-black flex items-center justify-center p-4 transition-colors duration-300";
+
+    const cardClasses = isDark
+        ? "w-full max-w-4xl rounded-2xl shadow-xl bg-gray-800"
+        : "w-full max-w-4xl rounded-2xl shadow-xl bg-white";
+
+    const html = `
+      <div class="${containerClasses}">
+        <div class="${cardClasses}">
+          <div class="p-6 sm:p-10 space-y-8">
+            
+            <div class="flex justify-between items-center mb-6">
+              <h1 class="text-2xl font-semibold">Speed Lab</h1>
+              <button class="btn btn-outline" data-action="toggleDarkMode">
+                ${isDark ? "Light" : "Dark"} Mode
+              </button>
+            </div>
+
+            <div class="flex gap-3 justify-center flex-wrap mb-6">
+              ${this.renderModeButtons()}
+            </div>
+
+            ${this.renderTimeOptions()}
+
+            ${this.renderPersonalBest()}
+
+            <div class="min-h-[250px] flex flex-col justify-center">
+                ${this.renderTypingMode()}
+                ${this.renderClickingMode()}
+                ${this.renderReactionMode()}
+            </div>
+
+            ${this.renderChart()}
+
+            ${this.renderPopup()}
+
+          </div>
+        </div>
+      </div>
+    `;
+
+    this.rootEl.innerHTML = html;
+    this.attachEventListeners();
+  }
+
+  attachEventListeners() {
+    // Re-attach the input ref
+    this.inputRef = document.getElementById('typing-input');
+    if (this.inputRef) {
+        // Need to set value carefully to avoid losing cursor position if we were typing
+        const currentVal = this.inputRef.value;
+        if(currentVal !== this.state.input) {
+            this.inputRef.value = this.state.input;
+        }
+        
+        this.inputRef.addEventListener('input', (e) => this.handleTyping(e));
+        // Keep focus if active
+        if(this.state.isActive && this.state.mode === 'typing') {
+             // small delay to ensure DOM is ready
+            setTimeout(() => this.inputRef.focus(), 0);
+        }
+    }
+
+    // Delegate clicks for buttons and actions
+    this.rootEl.querySelectorAll('[data-action]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        const action = el.getAttribute('data-action');
+        
+        if (action === 'toggleDarkMode') {
+          this.setState({ darkMode: !this.state.darkMode });
+        } else if (action === 'setMode') {
+          const m = el.getAttribute('data-mode');
+          this.clearTimers();
+          this.setState({ mode: m, isActive: false });
+        } else if (action === 'setTimeLimit') {
+          const t = parseInt(el.getAttribute('data-time'), 10);
+          this.handleTimeLimitChange(t);
+        } else if (action === 'startTyping') {
+          this.startTyping();
+        } else if (action === 'finishTyping') {
+          this.finishTyping();
+        } else if (action === 'startClicking') {
+          this.startClicking();
+        } else if (action === 'handleClickArea') {
+            if (this.state.isActive) {
+                this.setState({ clicks: this.state.clicks + 1 });
+            }
+        } else if (action === 'startReaction') {
+          this.startReaction();
+        } else if (action === 'handleReactionClick') {
+          this.handleReactionClick();
+        } else if (action === 'closePopup') {
+          this.setState({ popup: null });
+        }
+      });
+    });
+  }
+}
+
+// Initialize the app when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    const appContainer = document.getElementById('app');
+    new SpeedTestApp(appContainer);
+});
+
+</script>
+<style>
+/* Base Tailwind-like Utility Classes */
+:root {
+  --bg-gray-50: #f9fafb;
+  --bg-gray-800: #1f2937;
+  --bg-gray-900: #111827;
+  --text-black: #000;
+  --text-white: #fff;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Flexbox utilities */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.items-end { align-items: flex-end; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.justify-end { justify-content: flex-end; }
+.flex-wrap { flex-wrap: wrap; }
+.gap-1 { gap: 0.25rem; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+
+/* Spacing */
+.p-4 { padding: 1rem; }
+.p-6 { padding: 1.5rem; }
+.px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+.px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+.py-4 { padding-top: 1rem; padding-bottom: 1rem; }
+.pt-6 { padding-top: 1.5rem; }
+.mb-4 { margin-bottom: 1rem; }
+.mb-6 { margin-bottom: 1.5rem; }
+.mt-1 { margin-top: 0.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-4 { margin-top: 1rem; }
+.mt-8 { margin-top: 2rem; }
+.mx-auto { margin-left: auto; margin-right: auto; }
+.mr-2 { margin-right: 0.5rem; }
+
+/* Sizing */
+.w-full { width: 100%; }
+.max-w-4xl { max-width: 56rem; }
+.h-40 { height: 10rem; }
+.w-40 { width: 10rem; }
+.min-h-screen { min-height: 100vh; }
+.absolute { position: absolute; }
+.relative { position: relative; }
+.fixed { position: fixed; }
+.inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
+
+/* Typography */
+.text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+.text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+.text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+.text-2xl { font-size: 1.5rem; line-height: 2rem; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.leading-relaxed { line-height: 1.625; }
+.break-words { overflow-wrap: break-word; }
+
+/* Colors & Backgrounds */
+.bg-black { background-color: #000; }
+.bg-white { background-color: #fff; }
+.bg-gray-50 { background-color: var(--bg-gray-50); }
+.bg-gray-400 { background-color: #9ca3af; }
+.bg-gray-800 { background-color: var(--bg-gray-800); }
+.bg-gray-900 { background-color: var(--bg-gray-900); }
+.bg-red-500 { background-color: #ef4444; }
+.bg-green-500 { background-color: #22c55e; }
+.bg-yellow-400 { background-color: #facc15; }
+.bg-blue-500 { background-color: #3b82f6; }
+
+.text-black { color: var(--text-black); }
+.text-white { color: var(--text-white); }
+.text-red-500 { color: #ef4444; }
+.text-green-500 { color: #22c55e; }
+
+/* Borders & Shadows */
+.border { border-width: 1px; border-style: solid; border-color: #e5e7eb; }
+.border-t { border-top-width: 1px; }
+.border-gray-200 { border-color: #e5e7eb; }
+.border-gray-700 { border-color: #374151; }
+.rounded-sm { border-radius: 0.125rem; }
+.rounded-xl { border-radius: 0.75rem; }
+.rounded-2xl { border-radius: 1rem; }
+.shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+.shadow-xl { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); }
+.shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+
+/* Other */
+.opacity-0 { opacity: 0; }
+.opacity-70 { opacity: 0.7; }
+.z-10 { z-index: 10; }
+.z-50 { z-index: 50; }
+.cursor-pointer { cursor: pointer; }
+.cursor-text { cursor: text; }
+.select-none { user-select: none; }
+.space-y-4 > * + * { margin-top: 1rem; }
+.space-y-6 > * + * { margin-top: 1.5rem; }
+.space-y-8 > * + * { margin-top: 2rem; }
+
+/* Transitions & Animations */
+.transition-colors { transition-property: background-color, border-color, color, fill, stroke; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+.duration-100 { transition-duration: 100ms; }
+.duration-300 { transition-duration: 300ms; }
+.transition-transform { transition-property: transform; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); transition-duration: 150ms; }
+.active\:scale-95:active { transform: scale(0.95); }
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up { animation: slideUp 0.3s ease-out forwards; }
+
+
+/* Button Styles (mimicking shadcn/ui) */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  height: 2.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+  cursor: pointer;
+  border: none;
+}
+
+.btn:focus {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px white, 0 0 0 4px #000;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.btn-default {
+  background-color: #0f172a;
+  color: white;
+}
+.btn-default:hover {
+  background-color: #334155;
+}
+
+.btn-outline {
+  background-color: transparent;
+  border: 1px solid #e2e8f0;
+  color: #0f172a;
+}
+.btn-outline:hover {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+.btn-sm {
+    height: 2rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    font-size: 0.75rem;
+}
+
+/* Dark mode overrides for buttons inside the card */
+.bg-gray-800 .btn-default {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+.bg-gray-800 .btn-default:hover {
+  background-color: #e2e8f0;
+}
+
+.bg-gray-800 .btn-outline {
+  border-color: #334155;
+  color: #f8fafc;
+}
+.bg-gray-800 .btn-outline:hover {
+  background-color: #1e293b;
+  color: #f8fafc;
+}
+.bg-gray-800 .border {
+   border-color: #374151;
+}
+
+/* Bottom right popup buttons stay light/dark relative to popup bg */
+.fixed .btn-outline {
+    border-color: #334155;
+    color: white;
+}
+.fixed .btn-outline:hover {
+    background-color: #1e293b;
+}
+
+</style>
+</body>
+</html>
