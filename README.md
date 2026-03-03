@@ -1,138 +1,66 @@
 # ⚡ Speed Lab
 
-A clean, minimal, and fully interactive performance testing web app built with React.
-
-Speed Lab lets users measure:
-
-* ⌨️ Typing Speed (WPM + Accuracy)
-* 🖱️ Clicking Speed (CPS)
-* ⚡ Reaction Time (ms)
-
-Designed to be modern, responsive, and future-proof.
+Speed Lab is a clean, minimal, and interactive website that lets users test and improve their reaction time, typing speed, and clicking speed. The focus is on simple, accurate, and visually clear feedback, all within a modern and responsive interface.
 
 ---
 
-## 🚀 Features
+## 🌐 Live Website
+
+You can access the deployed website directly in your browser without installing anything.
+
+---
+
+## 🧪 What It Does
 
 ### ⌨️ Typing Test
 
-* Randomized word generation
-* Real-time word validation (correct = green, incorrect = red)
-* Timer starts only when user begins typing
-* Accurate WPM calculation (based on correct characters / 5 / minutes)
-* Accuracy percentage tracking
-* Personal best tracking
-* Per-test graph visualization
+* Presents a series of randomized words for the user to type.
+* Highlights words in green if typed correctly and red if typed incorrectly.
+* Timer starts only when the user begins typing.
+* Calculates your typing speed (WPM) and accuracy percentage.
+* Tracks your personal best and visualizes your results over time.
 
-### 🖱️ Clicking Speed Test
+### 🖱️ Clicking Test
 
-* Adjustable duration: 1s / 5s / 10s / 30s
-* Accurate CPS (clicks per second)
-* Real-time click counter
-* Personal best tracking
-* Graph history per attempt
+* Measures how many times you can click a button within a selected time frame (1s, 5s, 10s, 30s).
+* Calculates clicks per second (CPS) and provides instant feedback.
+* Shows historical performance on a graph for easy tracking.
 
-### ⚡ Reaction Time Test
+### ⚡ Reaction Test
 
-* Randomized delay (red → yellow → green)
-* Early click detection
-* High precision timing using `performance.now()`
-* Reaction rating feedback
-* Graph tracking per attempt
+* Shows a colored indicator that changes from red → yellow → green with a random delay.
+* You must click as soon as it turns green.
+* Records your reaction time in milliseconds and shows a rating (e.g., Fast, Human, Insane).
+* Early clicks are detected and marked.
 
 ---
 
-## 📊 Analytics & Tracking
+## 📝 How to Use
 
-* Personal best calculation per mode
-* Session history stored in state
-* Per-mode graph visualization using Recharts
-* Post-test performance popup with rating system
+1. Choose your test mode: Typing, Clicking, or Reaction.
+2. For typing and clicking, select your desired time limit.
+3. Click "Start" to begin the test.
+4. Follow on-screen instructions:
 
----
+   * Typing: Type the words as they appear.
+   * Clicking: Click the button as fast as possible.
+   * Reaction: Wait for the green indicator and click immediately.
+5. After finishing, view your results:
 
-## 🎨 UI / UX
-
-* Minimal & modern design
-* Dark / Light mode toggle
-* Fully responsive (mobile + desktop)
-* Smooth animations via Framer Motion
-* Clean card-based layout
-
----
-
-## 🛠 Tech Stack
-
-* React
-* Tailwind CSS
-* Framer Motion
-* Recharts
-* ShadCN UI components
+   * Typing: WPM, accuracy, personal best.
+   * Clicking: CPS, personal best.
+   * Reaction: Reaction time and rating.
+6. Review your performance on the graph below the test.
 
 ---
 
-## 📦 Installation
+## 🎨 Design
 
-```bash
-npm install
-npm run dev
-```
-
-Make sure the following dependencies are installed:
-
-```bash
-npm install framer-motion recharts
-```
+* Minimal and clean UI to keep focus on performance.
+* Responsive layout that works on both desktop and mobile devices.
+* Dark/Light mode toggle for visual comfort.
+* Simple animations to guide user attention without distraction.
 
 ---
 
-## 📁 Project Structure
-
-```
-SpeedLab/
- ├── components/
- ├── SpeedTestApp.jsx
- ├── package.json
- └── README.md
-```
-
----
-
-## 🔮 Future Improvements
-
-* Save history to localStorage
-* Add session averages
-* Export stats as JSON
-* Leaderboard system
-* Trend smoothing on graphs
-* Sound effects for reaction mode
-
----
-
-## 🧠 How Scoring Works
-
-### WPM
-
-Correct characters ÷ 5 ÷ minutes
-
-### Accuracy
-
-Correct characters ÷ total characters × 100
-
-### CPS
-
-Total clicks ÷ time duration
-
-### Reaction Time
-
-Milliseconds between green state and user click
-
----
-
-## 📜 License
-
-MIT License
-
----
-
-Built for performance testing, optimization, and skill tracking.
+Speed Lab is designed for anyone wanting to improve their typing, clicking, or reaction speed with accurate, immediate feedback and historical tracking.
